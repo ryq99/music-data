@@ -1,0 +1,4 @@
+notebook/.ipynb_checkpoints/
+config.yml
+.env
+.cache
