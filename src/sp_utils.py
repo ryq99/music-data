@@ -8,6 +8,49 @@ import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 
 
+def get_artists(artist_uris, sp, batch_size=10, sleep=3, market='US', is_top10_tracks=True):
+    """
+    Get artists data from Spotify.
+    Args:
+        artist_uris (list): a list of artist uris (uuid of Spotify)
+        sp (spotipy.Spotify): Spotify connector
+        batch_size (int): the number of tracks queried at one time (quota related)
+        sleep (int): sleep time between two queries in seconds (quota related)
+        market (str): country code, default as 'US' (documentation: https://spotipy.readthedocs.io/en/2.22.0/#spotipy.client.Spotify.recommendations)
+    Returns:
+        artists (pd.DataFrame)
+    """
+    if len(artist_uris) < batch_size:
+        batch_size = len(artist_uris)
+    artists = pd.DataFrame()
+
+    for b in tqdm(range(len(artist_uris) // batch_size), desc='In Progress'):
+        batch_uris = artist_uris[b*batch_size:min((b+1)*batch_size, len(artist_uris))]
+        result = sp.artists(batch_uris)['artists']
+
+        for a in result:
+            artist = pd.DataFrame([[
+                a['uri'], 
+                a['name'], 
+                a['popularity'], 
+                a['images'][0]['url'], 
+                ', '.join(a['genres']),
+                a['followers']['total'], 
+                ]], columns=[
+                    'artist_uri', 'artist_nm', 'artist_pop', 'artist_img', 'artist_genre', 'artist_num_followers',
+                    ])
+            if is_top10_tracks:
+                top10_result = sp.artist_top_tracks(a['uri'], country=market)['tracks'] # only US market
+                top10 = pd.DataFrame([[t['uri'] for t in top10_result]], columns=[f'top10_{n}_track_uri' for n in range(1, len(top10_result) + 1)])
+                artist = pd.concat([artist, top10], axis=1)
+                time.sleep(sleep)
+
+            artists = pd.concat([artists, artist], axis=0)
+        
+        time.sleep(sleep)
+
+    return artists
+
 def get_tracks(track_uris, sp, batch_size=10, sleep=3, market=None):
     """
     Get tracks data from Spotify.
